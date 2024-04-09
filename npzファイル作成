@@ -1,0 +1,70 @@
+import pydicom
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import glob
+
+# DICOM ファイルを読み込み
+files = []
+
+path_out = "F:/データ/02解析/無損傷/02_X-CT/X-CT_サンプルCのみ/npyファイル"
+print('DICOMファイルの場所: {}'.format("F:/データ/01実験計測/無損傷/00_無損傷_伊藤さんデータ/2-3.X線CT/1.作成過程/●X線_0623/3_元データ/02_再構成関数別/C/FC05/C-1(100-46-1)/*"))
+for fname in glob.glob("F:/データ/01実験計測/無損傷/00_無損傷_伊藤さんデータ/2-3.X線CT/1.作成過程/●X線_0623/3_元データ/02_再構成関数別/C/FC05/C-1(100-46-1)/*", recursive=False):
+    files.append(pydicom.dcmread(fname))
+
+# slicesというリストを作成。ファイルに、slicelocationという属性があれば追加していく。
+slices = []
+skipcount = 0
+for f in files:
+    if hasattr(f, 'SliceLocation'):
+            if 1==1: #5回CTを撮影し、5回目のデータのみを抽出
+                slices.append(f)
+    else:
+        skipcount = skipcount + 1
+
+print("該当ファイル数: {}".format(len(slices)))
+print("スライス位置がないファイル: {}".format(skipcount))
+
+# スライスの順番をそろえる
+slices = sorted(slices, key=lambda s: s.SliceLocation) # .SliceLocationで場所情報を取得
+# len(slices) = 270
+
+# アスペクト比を計算する
+ps = slices[0].PixelSpacing    # ps = [0.571, 0.571] 1ピクセルの [y, x] 長さ
+ss = slices[0].SliceThickness  # ss = "3.0" スライスの厚み
+ax_aspect = ps[0]/ps[1]        # yの長さ/xの長さ =  1
+sag_aspect = ss/ps[0]          # スライスの厚み/y軸方向への１ピクセルの長さ = 3/0.571 = 5.25
+cor_aspect = ss/ps[1]          # スライスの厚み/x軸方向への１ピクセルの長さ = 3/0.571 = 5.25
+
+# 空の3Dのnumpy arrayを作成する 
+img_shape = list(slices[0].pixel_array.shape) # img_shape = [512, 512]
+img_shape.insert(0,len(slices)) # img_shape = [270, 512, 512]  
+img3d = np.zeros(img_shape) # 空のarrayを作る　np.zeros([270, 512, 512])
+
+# 3Dのnumpy arrayを作る
+for i, s in enumerate(slices):
+    img2d = s.pixel_array    # img2d.shape = (512, 512) 
+    img3d[i,:, :] = img2d    # img3d.shape = (270, 512, 512)
+    
+a_load = np.save(path_out+"/"+'C-1.npy',img3d)
+    
+"""
+# プロットする
+middle0 = img_shape[0]//2  #3d array の(z軸)頭尾軸中央　270/2 = 135
+middle1 = img_shape[1]//2  #3d array の(y軸)上下軸中央　512/2 = 256
+middle2 = img_shape[2]//2  #3d array の(x軸)左右軸中央　512/2 = 256
+
+a1 = plt.subplot(1, 3, 1)
+plt.imshow(img3d[middle0,:, :])
+a1.set_aspect(ax_aspect)  # ax_aspect = 1
+
+a2 = plt.subplot(1, 3, 2)
+plt.imshow(img3d[:, middle1, :])
+a2.set_aspect(cor_aspect) # cor_aspect = 5.25
+
+a3 = plt.subplot(1, 3, 3)
+plt.imshow(img3d[:, :, middle2]) # 
+a3.set_aspect(sag_aspect) # sag_aspect = 5.25
+
+plt.show()
+"""
